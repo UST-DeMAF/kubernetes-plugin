@@ -4,7 +4,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-public class Service {
+public class KubernetesService {
     
     private String name;
 
@@ -13,10 +13,10 @@ public class Service {
     private Set<Selector> selectors = new HashSet<>();
 
 
-    public Service() {
+    public KubernetesService() {
     }
 
-    public Service(String name, Set<ServicePort> servicePorts, Set<Selector> selectors) {
+    public KubernetesService(String name, Set<ServicePort> servicePorts, Set<Selector> selectors) {
         this.name = name;
         this.servicePorts = servicePorts;
         this.selectors = selectors;
@@ -46,17 +46,17 @@ public class Service {
         this.selectors = selectors;
     }
 
-    public Service name(String name) {
+    public KubernetesService name(String name) {
         setName(name);
         return this;
     }
 
-    public Service servicePorts(Set<ServicePort> servicePorts) {
+    public KubernetesService servicePorts(Set<ServicePort> servicePorts) {
         setServicePorts(servicePorts);
         return this;
     }
 
-    public Service selectors(Set<Selector> selectors) {
+    public KubernetesService selectors(Set<Selector> selectors) {
         setSelectors(selectors);
         return this;
     }
@@ -65,10 +65,10 @@ public class Service {
     public boolean equals(Object o) {
         if (o == this)
             return true;
-        if (!(o instanceof Service)) {
+        if (!(o instanceof KubernetesService)) {
             return false;
         }
-        Service service = (Service) o;
+        KubernetesService service = (KubernetesService) o;
         return Objects.equals(name, service.name) && Objects.equals(servicePorts, service.servicePorts) && Objects.equals(selectors, service.selectors);
     }
 

@@ -4,7 +4,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-public class Deployment {
+public class KubernetesDeployment {
     
     private String name;
 
@@ -15,10 +15,10 @@ public class Deployment {
     private Set<Container> container = new HashSet<>();
 
 
-    public Deployment() {
+    public KubernetesDeployment() {
     }
 
-    public Deployment(String name, int replicas, Set<Label> labels, Set<Container> container) {
+    public KubernetesDeployment(String name, int replicas, Set<Label> labels, Set<Container> container) {
         this.name = name;
         this.replicas = replicas;
         this.labels = labels;
@@ -57,22 +57,22 @@ public class Deployment {
         this.container = container;
     }
 
-    public Deployment name(String name) {
+    public KubernetesDeployment name(String name) {
         setName(name);
         return this;
     }
 
-    public Deployment replicas(int replicas) {
+    public KubernetesDeployment replicas(int replicas) {
         setReplicas(replicas);
         return this;
     }
 
-    public Deployment labels(Set<Label> labels) {
+    public KubernetesDeployment labels(Set<Label> labels) {
         setLabels(labels);
         return this;
     }
 
-    public Deployment container(Set<Container> container) {
+    public KubernetesDeployment container(Set<Container> container) {
         setContainer(container);
         return this;
     }
@@ -81,10 +81,10 @@ public class Deployment {
     public boolean equals(Object o) {
         if (o == this)
             return true;
-        if (!(o instanceof Deployment)) {
+        if (!(o instanceof KubernetesDeployment)) {
             return false;
         }
-        Deployment deployment = (Deployment) o;
+        KubernetesDeployment deployment = (KubernetesDeployment) o;
         return Objects.equals(name, deployment.name) && replicas == deployment.replicas && Objects.equals(labels, deployment.labels) && Objects.equals(container, deployment.container);
     }
 
