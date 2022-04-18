@@ -1,4 +1,4 @@
-# kubernetes-plugin-springboot
+# kubernetes-plugin
 
 ## Build
 ```shell
