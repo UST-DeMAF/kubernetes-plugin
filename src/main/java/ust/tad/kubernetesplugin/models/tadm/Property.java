@@ -8,7 +8,7 @@ public class Property {
 
     private PropertyType type;
 
-    private boolean required;
+    private boolean required = false;
 
     private Object value;
     

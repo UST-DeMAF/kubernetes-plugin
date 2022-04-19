@@ -30,6 +30,7 @@ import ust.tad.kubernetesplugin.kubernetesmodel.service.KubernetesService;
 import ust.tad.kubernetesplugin.kubernetesmodel.service.Selector;
 import ust.tad.kubernetesplugin.kubernetesmodel.service.ServicePort;
 import ust.tad.kubernetesplugin.models.ModelsService;
+import ust.tad.kubernetesplugin.models.tadm.InvalidPropertyValueException;
 import ust.tad.kubernetesplugin.models.tadm.TechnologyAgnosticDeploymentModel;
 import ust.tad.kubernetesplugin.models.tsdm.DeploymentModelContent;
 import ust.tad.kubernetesplugin.models.tsdm.InvalidAnnotationException;
@@ -49,6 +50,9 @@ public class AnalysisService {
 
     @Autowired
     AnalysisTaskResponseSender analysisTaskResponseSender;
+
+    @Autowired
+    ComponentCreationService componentCreationService;
 
     private static final Set<String> supportedFileExtensions = Set.of("yaml", "yml");
     
@@ -87,7 +91,7 @@ public class AnalysisService {
 
         try {
             runAnalysis(locations);
-        } catch (URISyntaxException | IOException | InvalidNumberOfLinesException | InvalidAnnotationException | InvalidNumberOfContentException e) { 
+        } catch (URISyntaxException | IOException | InvalidNumberOfLinesException | InvalidAnnotationException | InvalidNumberOfContentException | InvalidPropertyValueException e) { 
             e.printStackTrace();
             analysisTaskResponseSender.sendFailureResponse(taskId, e.getClass()+": "+e.getMessage());
             return;
@@ -145,8 +149,9 @@ public class AnalysisService {
      * @throws InvalidNumberOfLinesException
      * @throws IOException
      * @throws URISyntaxException
+     * @throws InvalidPropertyValueException
      */
-    private void runAnalysis(List<Location> locations) throws URISyntaxException, IOException, InvalidNumberOfLinesException, InvalidAnnotationException, InvalidNumberOfContentException {
+    private void runAnalysis(List<Location> locations) throws URISyntaxException, IOException, InvalidNumberOfLinesException, InvalidAnnotationException, InvalidNumberOfContentException, InvalidPropertyValueException {
         for(Location location : locations) {
             String locationURLString = location.getUrl().toString().trim().replaceAll("\\.$", "");
             URL locationURL = new URL(locationURLString);
@@ -173,8 +178,7 @@ public class AnalysisService {
                 }
             }
         }
-        //transformToEDMM();
-        // create components
+        this.tadm = componentCreationService.createComponents(this.tadm, this.deployments, this.services);
         // create relations
     }
 
