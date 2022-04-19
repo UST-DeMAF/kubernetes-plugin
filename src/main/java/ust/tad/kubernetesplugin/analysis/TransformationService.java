@@ -1,17 +1,21 @@
 package ust.tad.kubernetesplugin.analysis;
 
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import ust.tad.kubernetesplugin.kubernetesmodel.deployment.Container;
 import ust.tad.kubernetesplugin.kubernetesmodel.deployment.ContainerPort;
 import ust.tad.kubernetesplugin.kubernetesmodel.deployment.EnvironmentVariable;
 import ust.tad.kubernetesplugin.kubernetesmodel.deployment.KubernetesDeployment;
-import ust.tad.kubernetesplugin.kubernetesmodel.deployment.Label;
 import ust.tad.kubernetesplugin.kubernetesmodel.service.KubernetesService;
 import ust.tad.kubernetesplugin.kubernetesmodel.service.Selector;
 import ust.tad.kubernetesplugin.kubernetesmodel.service.ServicePort;
@@ -20,28 +24,37 @@ import ust.tad.kubernetesplugin.models.tadm.Component;
 import ust.tad.kubernetesplugin.models.tadm.ComponentType;
 import ust.tad.kubernetesplugin.models.tadm.Confidence;
 import ust.tad.kubernetesplugin.models.tadm.InvalidPropertyValueException;
+import ust.tad.kubernetesplugin.models.tadm.InvalidRelationException;
 import ust.tad.kubernetesplugin.models.tadm.Property;
 import ust.tad.kubernetesplugin.models.tadm.PropertyType;
 import ust.tad.kubernetesplugin.models.tadm.TechnologyAgnosticDeploymentModel;
 
 @Service
-public class ComponentCreationService {
+public class TransformationService {
+
+    @Autowired
+    private RelationFinderService relationFinderService;
+
+    private Map<KubernetesService, KubernetesDeployment> matchingServicesAndDeployments = new HashMap<>();
 
     /**
-     * Create EDMM components from the given deployments and services of the internal Kubernetes model.
-     * Adds them to a given technology-agnostic deployment model.
+     * Creates EDMM components, component types and relations from the given deployments and services 
+     * of the internal Kubernetes model.
+     * Adds them to the given technology-agnostic deployment model.
      * 
      * @param tadm
      * @param deployments
      * @param services
      * @return the modified technology-agnostic deployment model.
      * @throws InvalidPropertyValueException
+     * @throws InvalidRelationException
+     * @throws MalformedURLException
+     * @throws URISyntaxException
      */
-    public TechnologyAgnosticDeploymentModel createComponents(
+    public TechnologyAgnosticDeploymentModel transformInternalToTADM(
         TechnologyAgnosticDeploymentModel tadm, 
         Set<KubernetesDeployment> deployments,  
-        Set<KubernetesService> services) throws InvalidPropertyValueException {
-
+        Set<KubernetesService> services) throws InvalidPropertyValueException, InvalidRelationException, URISyntaxException {
             List<Component> newComponents = new ArrayList<>();
             List<ComponentType> newComponentTypes = new ArrayList<>();
             for (KubernetesDeployment deployment : deployments) {
@@ -63,7 +76,7 @@ public class ComponentCreationService {
                 List<Property> properties = component.getProperties();
                 Set<ContainerPort> containerPorts = new HashSet<>();
                 deployment.getContainer().forEach(container -> containerPorts.addAll(container.getContainerPorts()));
-                properties.addAll(createPropertiesFromMatchingService(services, deployment.getLabels(), containerPorts));
+                properties.addAll(createPropertiesFromMatchingService(services, deployment));
                 component.setProperties(properties);
 
                 ComponentType newComponentType = createTypeForComponent(component);
@@ -80,6 +93,8 @@ public class ComponentCreationService {
             components.addAll(newComponents);
             tadm.setComponents(components);
 
+            tadm = relationFinderService.findAndCreateRelations(tadm, newComponents, this.matchingServicesAndDeployments);
+
             return tadm;
         }
 
@@ -92,7 +107,7 @@ public class ComponentCreationService {
     private Artifact createArtifactFromImage(String image) {
         Artifact artifact = new Artifact();
         artifact.setName(image);
-        artifact.setType("Docker_image");
+        artifact.setType("docker_image");
         artifact.setConfidence(Confidence.CONFIRMED);
         return artifact;
     }
@@ -153,13 +168,17 @@ public class ComponentCreationService {
      * @return the created properties.
      * @throws InvalidPropertyValueException
      */
-    private List<Property> createPropertiesFromMatchingService(Set<KubernetesService> services, Set<Label> labels, Set<ContainerPort> containerPorts) throws InvalidPropertyValueException {
+    private List<Property> createPropertiesFromMatchingService(Set<KubernetesService> services, KubernetesDeployment deployment) throws InvalidPropertyValueException {        
+        Set<ContainerPort> containerPorts = new HashSet<>();
+        deployment.getContainer().forEach(container -> containerPorts.addAll(container.getContainerPorts()));        
+        
         List<Property> properties = new ArrayList<>();
         for (KubernetesService service : services) {
             for (Selector selector : service.getSelectors()) {
-                if (labels.stream().filter(label -> 
+                if (deployment.getLabels().stream().filter(label -> 
                     label.getKey().equals(selector.getKey()) &&
                     label.getValue().equals(selector.getValue())).count() > 0) {
+                        this.matchingServicesAndDeployments.put(service, deployment);
                         Set<ServicePort> servicePorts = service.getServicePorts();                        
                         properties.addAll(createPropertiesFromMatchingPorts(servicePorts, containerPorts));
                 }

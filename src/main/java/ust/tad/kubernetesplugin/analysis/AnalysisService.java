@@ -31,6 +31,7 @@ import ust.tad.kubernetesplugin.kubernetesmodel.service.Selector;
 import ust.tad.kubernetesplugin.kubernetesmodel.service.ServicePort;
 import ust.tad.kubernetesplugin.models.ModelsService;
 import ust.tad.kubernetesplugin.models.tadm.InvalidPropertyValueException;
+import ust.tad.kubernetesplugin.models.tadm.InvalidRelationException;
 import ust.tad.kubernetesplugin.models.tadm.TechnologyAgnosticDeploymentModel;
 import ust.tad.kubernetesplugin.models.tsdm.DeploymentModelContent;
 import ust.tad.kubernetesplugin.models.tsdm.InvalidAnnotationException;
@@ -46,13 +47,13 @@ public class AnalysisService {
       LoggerFactory.getLogger(AnalysisService.class);
     
     @Autowired
-    ModelsService modelsService;
+    private ModelsService modelsService;
 
     @Autowired
-    AnalysisTaskResponseSender analysisTaskResponseSender;
+    private AnalysisTaskResponseSender analysisTaskResponseSender;
 
     @Autowired
-    ComponentCreationService componentCreationService;
+    private TransformationService transformationService;
 
     private static final Set<String> supportedFileExtensions = Set.of("yaml", "yml");
     
@@ -91,14 +92,11 @@ public class AnalysisService {
 
         try {
             runAnalysis(locations);
-        } catch (URISyntaxException | IOException | InvalidNumberOfLinesException | InvalidAnnotationException | InvalidNumberOfContentException | InvalidPropertyValueException e) { 
+        } catch (URISyntaxException | IOException | InvalidNumberOfLinesException | InvalidAnnotationException | InvalidNumberOfContentException | InvalidPropertyValueException | InvalidRelationException e) { 
             e.printStackTrace();
             analysisTaskResponseSender.sendFailureResponse(taskId, e.getClass()+": "+e.getMessage());
             return;
         }
-
-        LOG.info("Detected services: "+this.services.toString());
-        LOG.info("Detected deployments: "+this.deployments.toString());
 
         updateDeploymentModels(this.tsdm, this.tadm);
 
@@ -150,8 +148,9 @@ public class AnalysisService {
      * @throws IOException
      * @throws URISyntaxException
      * @throws InvalidPropertyValueException
+     * @throws InvalidRelationException
      */
-    private void runAnalysis(List<Location> locations) throws URISyntaxException, IOException, InvalidNumberOfLinesException, InvalidAnnotationException, InvalidNumberOfContentException, InvalidPropertyValueException {
+    private void runAnalysis(List<Location> locations) throws URISyntaxException, IOException, InvalidNumberOfLinesException, InvalidAnnotationException, InvalidNumberOfContentException, InvalidPropertyValueException, InvalidRelationException {
         for(Location location : locations) {
             String locationURLString = location.getUrl().toString().trim().replaceAll("\\.$", "");
             URL locationURL = new URL(locationURLString);
@@ -178,8 +177,7 @@ public class AnalysisService {
                 }
             }
         }
-        this.tadm = componentCreationService.createComponents(this.tadm, this.deployments, this.services);
-        // create relations
+        this.tadm = transformationService.transformInternalToTADM(this.tadm, this.deployments, this.services);
     }
 
     public void parseFile(URL url) throws IOException, InvalidNumberOfLinesException, InvalidAnnotationException {
@@ -428,7 +426,6 @@ public class AnalysisService {
                                                     container.setName(currentLine.split("name:")[1].trim());
                                                 } else if (currentLine.trim().startsWith("image:")) {
                                                     lines.add(new Line(lineNumber, 1D, true));
-                                                    LOG.info(currentLine);
                                                     container.setImage(currentLine.split("image:")[1].trim());
                                                 } else if (currentLine.trim().startsWith("ports:")) {
                                                     lines.add(new Line(lineNumber, 1D, true));

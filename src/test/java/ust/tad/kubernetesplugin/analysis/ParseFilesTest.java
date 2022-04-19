@@ -2,6 +2,8 @@ package ust.tad.kubernetesplugin.analysis;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 
 import org.junit.jupiter.api.Test;
@@ -18,12 +20,18 @@ public class ParseFilesTest {
     AnalysisService analysisService;
 
     @Test
-    public void parseService_success() throws IOException, InvalidNumberOfLinesException, InvalidAnnotationException {
+    public void parseService_success() throws IOException, InvalidNumberOfLinesException, InvalidAnnotationException, URISyntaxException {
 
-        URL fileURL = new URL("file:/home/ubuntu/fork/kube/k8/order.yaml");
+        String connecString = "jdbc:postgresql://postgres-inventory:5432/inventory";
+        URI connectionURI = new URI(connecString.replaceFirst("jdbc:", ""));
 
-        analysisService.parseFile(fileURL);
+        
 
+        System.out.println("Scheme:"+connectionURI.getScheme());
+        System.out.println("Authority:"+connectionURI.getAuthority());
+        System.out.println("Host:"+connectionURI.getHost());
+        System.out.println("UserInfo:"+connectionURI.getUserInfo());
+        System.out.println("Path:"+connectionURI.getPath());
 
     }
     
