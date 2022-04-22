@@ -8,13 +8,13 @@ public class ServicePort {
 
     private int port;
 
-    private int targetPort;
+    private String targetPort;
 
 
     public ServicePort() {
     }
 
-    public ServicePort(String name, int port, int targetPort) {
+    public ServicePort(String name, int port, String targetPort) {
         this.name = name;
         this.port = port;
         this.targetPort = targetPort;
@@ -36,11 +36,11 @@ public class ServicePort {
         this.port = port;
     }
 
-    public int getTargetPort() {
+    public String getTargetPort() {
         return this.targetPort;
     }
 
-    public void setTargetPort(int targetPort) {
+    public void setTargetPort(String targetPort) {
         this.targetPort = targetPort;
     }
 
@@ -54,7 +54,7 @@ public class ServicePort {
         return this;
     }
 
-    public ServicePort targetPort(int targetPort) {
+    public ServicePort targetPort(String targetPort) {
         setTargetPort(targetPort);
         return this;
     }

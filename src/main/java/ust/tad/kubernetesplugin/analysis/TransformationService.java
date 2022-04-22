@@ -172,7 +172,7 @@ public class TransformationService {
         Set<ContainerPort> containerPorts = new HashSet<>();
         deployment.getContainer().forEach(container -> containerPorts.addAll(container.getContainerPorts()));        
         
-        List<Property> properties = new ArrayList<>();
+        Set<Property> properties = new HashSet<>();
         for (KubernetesService service : services) {
             for (Selector selector : service.getSelectors()) {
                 if (deployment.getLabels().stream().filter(label -> 
@@ -184,7 +184,7 @@ public class TransformationService {
                 }
             }
         }
-        return properties;
+        return new ArrayList<>(properties);
     }
 
     /**
@@ -200,7 +200,7 @@ public class TransformationService {
         List<Property> properties = new ArrayList<>();
         for (ServicePort servicePort : servicePorts) {
             for (ContainerPort containerPort : containerPorts) {
-                if (servicePort.getTargetPort() == containerPort.getPort()) {
+                if (servicePort.getTargetPort().equals(String.valueOf(containerPort.getPort())) || containerPort.getName() != null && servicePort.getTargetPort().equals(containerPort.getName())) {
                     Property property = new Property();
                     if (servicePort.getName() == null) {
                         property.setKey("external_port");

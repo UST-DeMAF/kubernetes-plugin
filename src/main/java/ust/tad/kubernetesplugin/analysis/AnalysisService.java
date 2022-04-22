@@ -77,6 +77,10 @@ public class AnalysisService {
      * @param locations
      */
     public void startAnalysis(UUID taskId, UUID transformationProcessId, List<String> commands, List<Location> locations) {
+        this.newEmbeddedDeploymentModelIndexes.clear();
+        this.deployments.clear();
+        this.services.clear();
+        
         TechnologySpecificDeploymentModel completeTsdm = modelsService.getTechnologySpecificDeploymentModel(transformationProcessId);
         this.tsdm = getExistingTsdm(completeTsdm, locations);
         if(tsdm == null) {
@@ -281,7 +285,7 @@ public class AnalysisService {
                                     servicePort.setPort(Integer.parseInt(lineSplit[1].trim()));
                                 } else if (currentLine.trim().startsWith("targetPort:")) {
                                     lines.add(new Line(lineNumber, 1D, true));
-                                    servicePort.setTargetPort(Integer.parseInt(lineSplit[1].trim()));                                    
+                                    servicePort.setTargetPort(lineSplit[1].trim());                                    
                                 } else {
                                     lines.add(new Line(lineNumber, 0D, true));
                                 }
@@ -485,7 +489,9 @@ public class AnalysisService {
                                                         if (linesIterator.hasNext()) {
                                                             linesIterator.previous();                                
                                                         }
-                                                        environmentVariables.add(environmentVariable);
+                                                        if (environmentVariable.getKey() != null && environmentVariable.getValue() != null) {
+                                                            environmentVariables.add(environmentVariable);
+                                                        }
                                                     }
                                                     if (linesIterator.hasNext()) {
                                                         linesIterator.previous();                                
