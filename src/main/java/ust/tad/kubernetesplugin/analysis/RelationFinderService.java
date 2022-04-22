@@ -10,8 +10,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import ust.tad.kubernetesplugin.kubernetesmodel.deployment.KubernetesDeployment;
@@ -28,9 +26,6 @@ import ust.tad.kubernetesplugin.models.tadm.TechnologyAgnosticDeploymentModel;
 @Service
 public class RelationFinderService {
     
-    private static final Logger LOG =
-      LoggerFactory.getLogger(RelationFinderService.class);
-
     private RelationType connectsToRelationType = new RelationType();
     private RelationType hostedOnRelationType = new RelationType();
 
@@ -80,8 +75,6 @@ public class RelationFinderService {
         if (containerRuntimeComponentTypeOpt.isPresent()) {
             Optional<Component> containerRuntimeComponentOpt = tadm.getComponents().stream().filter(component -> component.getType().equals(containerRuntimeComponentTypeOpt.get())).findFirst();
             if(containerRuntimeComponentOpt.isPresent()) {
-                LOG.info("Source: "+newComponent.toString());
-                LOG.info("Target: "+containerRuntimeComponentOpt.get().toString());
                 Relation relation = new Relation();
                 relation.setType(this.hostedOnRelationType);
                 relation.setName(newComponent.getName()+"_"+this.hostedOnRelationType.getName()+"_"+containerRuntimeComponentOpt.get().getName());
