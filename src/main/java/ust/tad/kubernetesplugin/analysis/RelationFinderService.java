@@ -1,6 +1,5 @@
 package ust.tad.kubernetesplugin.analysis;
 
-import java.lang.StackWalker.Option;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -105,28 +104,33 @@ public class RelationFinderService {
             List<Relation> newRelations = new ArrayList<>();
 
             for (Property property : newComponent.getProperties()) {
+                String targetComponentName = "";
                 if (property.getKey().equals("SPRING_DATASOURCE_URL")) {
-                    URI connectionURI = new URI(property.getValue().toString().replaceFirst("jdbc:", ""));
-                    Optional<Relation> relationOpt = createRelationFromConnectionURI(connectionURI, newComponent, tadm.getComponents(), matchingServicesAndDeployments);
-                    if (relationOpt.isPresent()) {
-                        newRelations.add(relationOpt.get());
-                    }
+                    targetComponentName = new URI(property.getValue().toString().replaceFirst("jdbc:", "")).getHost();
                 } else if (property.getValue().toString().startsWith("http")) {
-                    URI connectionURI = new URI(property.getValue().toString());
-                    Optional<Relation> relationOpt = createRelationFromConnectionURI(connectionURI, newComponent, tadm.getComponents(), matchingServicesAndDeployments);
+                    targetComponentName = new URI(property.getValue().toString()).getHost();
+                } else if (property.getKey().equals("MONGO_HOST")) {
+                    targetComponentName = property.getValue().toString();
+                }else if (property.getKey().contains("KAFKA_BOOTSTRAP_SERVERS")) {
+                    targetComponentName = property.getValue().toString().split(":")[0];
+                } else if (property.getKey().contains("ZOOKEEPER_CONNECTION_STRING")) {
+                    targetComponentName = property.getValue().toString().split(":")[0]; 
+                }
+
+                if (!targetComponentName.equals("")) {
+                    Optional<Relation> relationOpt = createRelationToComponent(targetComponentName, newComponent, tadm.getComponents(), matchingServicesAndDeployments);
                     if (relationOpt.isPresent()) {
                         newRelations.add(relationOpt.get());
                     }
                 }
-            // kafka & kafka-zookeeper -> eventuate, search values and then components with this name? add with helm?
-            // mongodb: MONGO_HOST, value has component name but with suffix -mongodb
+
             }
             return newRelations;
     }
 
     /**
-     * For a given URI, create an EDMM relation of type "connects to".
-     * For that, finds the EDMM component that the URI refers to in the host part.
+     * Create an EDMM relation between a source and a target component of type "connects to".
+     * For that, finds the target component by the given targetComponentName.
      * If it cannot find the component, it creates no relation.
      * 
      * @param connectionURI
@@ -138,8 +142,8 @@ public class RelationFinderService {
      * @throws InvalidRelationException
      * @throws URISyntaxException
      */
-    private Optional<Relation> createRelationFromConnectionURI(
-        URI connectionURI, 
+    private Optional<Relation> createRelationToComponent(
+        String targetComponentName, 
         Component sourceComponent, 
         List<Component> components,
         Map<KubernetesService, KubernetesDeployment> matchingServicesAndDeployments) 
@@ -149,14 +153,13 @@ public class RelationFinderService {
             relation.setSource(sourceComponent);
             relation.setConfidence(Confidence.CONFIRMED);
 
-            String targetName = connectionURI.getHost();
-            Optional<Component> targetComponentOpt = getComponentByName(targetName, components);
+            Optional<Component> targetComponentOpt = getComponentByName(targetComponentName, components);
             if (targetComponentOpt.isPresent()) {
                 relation.setTarget(targetComponentOpt.get());
                 relation.setName(sourceComponent.getName()+"_"+this.connectsToRelationType.getName()+"_"+targetComponentOpt.get().getName());
                 return Optional.of(relation);
             }
-            targetComponentOpt = getComponentByMatchingService(targetName, matchingServicesAndDeployments, components);
+            targetComponentOpt = getComponentByMatchingService(targetComponentName, matchingServicesAndDeployments, components);
             if (targetComponentOpt.isPresent()) {
                 relation.setTarget(targetComponentOpt.get());
                 relation.setName(sourceComponent.getName()+"_"+this.connectsToRelationType.getName()+"_"+targetComponentOpt.get().getName());
@@ -166,6 +169,13 @@ public class RelationFinderService {
             return Optional.empty();
     }
 
+    /**
+     * Get a component by its name from a given List of components.
+     * 
+     * @param name
+     * @param components
+     * @return
+     */
     private Optional<Component> getComponentByName(String name, List<Component> components) {
         return components.stream().filter(component -> component.getName().equals(name)).findFirst();
     }
