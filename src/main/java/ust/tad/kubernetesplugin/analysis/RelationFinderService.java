@@ -4,10 +4,13 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
@@ -44,7 +47,7 @@ public class RelationFinderService {
         Map<KubernetesService, KubernetesDeployment> matchingServicesAndDeployments) 
         throws InvalidRelationException, URISyntaxException {
             setRelationTypes(tadm.getRelationTypes());
-            List<Relation> newRelations = new ArrayList<>();
+            Set<Relation> newRelations = new HashSet<>();
 
             for (Component newComponent : newComponents) {
                 newRelations.addAll(findRelationsInProperties(tadm, newComponent, matchingServicesAndDeployments));
@@ -52,13 +55,50 @@ public class RelationFinderService {
                 if (relationToContainerRuntime.isPresent()) {
                     newRelations.add(relationToContainerRuntime.get());
                 }
-            }        
+            }   
+            
+            newRelations.addAll(findRelationInPropertiesWithComponentNames(tadm, newComponents, matchingServicesAndDeployments));
 
             List<Relation> relations = tadm.getRelations();
             relations.addAll(newRelations);
             tadm.setRelations(relations);
             return tadm;
     }
+
+    /**
+     * Find relations in the properties of the newly created Components.
+     * 
+     * @param tadm
+     * @param newComponents
+     * @param matchingServicesAndDeployments
+     * @return
+     * @throws InvalidRelationException
+     */
+    private List<Relation> findRelationInPropertiesWithComponentNames(TechnologyAgnosticDeploymentModel tadm, 
+        List<Component> newComponents, 
+        Map<KubernetesService, KubernetesDeployment> matchingServicesAndDeployments) throws InvalidRelationException {
+        String[] keywords = {"connect","host","server"};
+        List<Relation> newRelations = new ArrayList<>();
+        List<String> componentNames = newComponents.stream().map(component -> component.getName()).collect(Collectors.toList());
+        for (Component sourceComponent : newComponents) {
+            for (Property property : sourceComponent.getProperties()) {
+                for (String targetComponentName : componentNames) {
+                    if (!targetComponentName.equals(sourceComponent.getName())) {
+                        String propertyKey = property.getKey().toString().toLowerCase();
+                        if (Arrays.stream(keywords).anyMatch(propertyKey::contains) &&
+                            property.getValue().toString().trim().replaceAll("\"", "").equals(targetComponentName)) {
+                            Optional<Relation> relationOpt = createRelationToComponent(targetComponentName, sourceComponent, tadm.getComponents(), matchingServicesAndDeployments);
+                            if (relationOpt.isPresent()) {
+                                newRelations.add(relationOpt.get());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return newRelations;
+    }
+
 
     /**
      * Finds and creates an EDMM relation of type "hosted on" between a newly created component and an 
@@ -111,7 +151,7 @@ public class RelationFinderService {
                     targetComponentName = new URI(property.getValue().toString()).getHost();
                 } else if (property.getKey().equals("MONGO_HOST")) {
                     targetComponentName = property.getValue().toString();
-                }else if (property.getKey().contains("KAFKA_BOOTSTRAP_SERVERS")) {
+                } else if (property.getKey().contains("KAFKA_BOOTSTRAP_SERVERS")) {
                     targetComponentName = property.getValue().toString().split(":")[0];
                 } else if (property.getKey().contains("ZOOKEEPER_CONNECTION_STRING")) {
                     targetComponentName = property.getValue().toString().split(":")[0]; 
