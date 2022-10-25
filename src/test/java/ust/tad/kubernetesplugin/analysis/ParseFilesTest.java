@@ -1,10 +1,8 @@
 package ust.tad.kubernetesplugin.analysis;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,9 +22,6 @@ public class ParseFilesTest {
 
         String connecString = "jdbc:postgresql://postgres-inventory:5432/inventory";
         URI connectionURI = new URI(connecString.replaceFirst("jdbc:", ""));
-
-        
-
         System.out.println("Scheme:"+connectionURI.getScheme());
         System.out.println("Authority:"+connectionURI.getAuthority());
         System.out.println("Host:"+connectionURI.getHost());

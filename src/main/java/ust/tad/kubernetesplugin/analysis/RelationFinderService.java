@@ -1,10 +1,10 @@
 package ust.tad.kubernetesplugin.analysis;
 
 import java.net.MalformedURLException;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +27,8 @@ import ust.tad.kubernetesplugin.models.tadm.TechnologyAgnosticDeploymentModel;
 
 @Service
 public class RelationFinderService {
+
+    private String[] PROPERTY_KEYWORDS = {"connect","host","server","url","uri"};
     
     private RelationType connectsToRelationType = new RelationType();
     private RelationType hostedOnRelationType = new RelationType();
@@ -48,57 +50,17 @@ public class RelationFinderService {
         throws InvalidRelationException, URISyntaxException {
             setRelationTypes(tadm.getRelationTypes());
             Set<Relation> newRelations = new HashSet<>();
-
             for (Component newComponent : newComponents) {
                 newRelations.addAll(findRelationsInProperties(tadm, newComponent, matchingServicesAndDeployments));
                 Optional<Relation> relationToContainerRuntime = findRelationToContainerRuntime(tadm, newComponent);
                 if (relationToContainerRuntime.isPresent()) {
                     newRelations.add(relationToContainerRuntime.get());
                 }
-            }   
-            
-            newRelations.addAll(findRelationInPropertiesWithComponentNames(tadm, newComponents, matchingServicesAndDeployments));
-
-            List<Relation> relations = tadm.getRelations();
-            relations.addAll(newRelations);
-            tadm.setRelations(relations);
+            }               
+            //newRelations.addAll(findRelationInPropertiesWithComponentNames(tadm, newComponents, matchingServicesAndDeployments));
+            tadm.addRelations(newRelations);
             return tadm;
     }
-
-    /**
-     * Find relations in the properties of the newly created Components.
-     * 
-     * @param tadm
-     * @param newComponents
-     * @param matchingServicesAndDeployments
-     * @return
-     * @throws InvalidRelationException
-     */
-    private List<Relation> findRelationInPropertiesWithComponentNames(TechnologyAgnosticDeploymentModel tadm, 
-        List<Component> newComponents, 
-        Map<KubernetesService, KubernetesDeployment> matchingServicesAndDeployments) throws InvalidRelationException {
-        String[] keywords = {"connect","host","server"};
-        List<Relation> newRelations = new ArrayList<>();
-        List<String> componentNames = newComponents.stream().map(component -> component.getName()).collect(Collectors.toList());
-        for (Component sourceComponent : newComponents) {
-            for (Property property : sourceComponent.getProperties()) {
-                for (String targetComponentName : componentNames) {
-                    if (!targetComponentName.equals(sourceComponent.getName())) {
-                        String propertyKey = property.getKey().toString().toLowerCase();
-                        if (Arrays.stream(keywords).anyMatch(propertyKey::contains) &&
-                            property.getValue().toString().trim().replaceAll("\"", "").equals(targetComponentName)) {
-                            Optional<Relation> relationOpt = createRelationToComponent(targetComponentName, sourceComponent, tadm.getComponents(), matchingServicesAndDeployments);
-                            if (relationOpt.isPresent()) {
-                                newRelations.add(relationOpt.get());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return newRelations;
-    }
-
 
     /**
      * Finds and creates an EDMM relation of type "hosted on" between a newly created component and an 
@@ -127,45 +89,62 @@ public class RelationFinderService {
     }
 
     /**
-     * Iterates over the properties of a newly created component to find relations to other components.
+     * Iterates over the properties of a component to find relations to other components.
+     * It uses the PROPERTY_KEYWORDS to find properties that may contain references to other components.
+     * The values of these properties are inspected, whether they contain the name of another component.
+     * If so, a new relation between the source component and the matched component is created.
      * 
      * @param tadm
-     * @param newComponent
+     * @param sourceComponent
      * @param matchingServicesAndDeployments
-     * @return
+     * @return the List of new relations that were created.
      * @throws InvalidRelationException
      * @throws URISyntaxException
      */
     private List<Relation> findRelationsInProperties(
         TechnologyAgnosticDeploymentModel tadm, 
-        Component newComponent, 
+        Component sourceComponent, 
         Map<KubernetesService, KubernetesDeployment> matchingServicesAndDeployments) 
         throws InvalidRelationException, URISyntaxException {
             List<Relation> newRelations = new ArrayList<>();
-
-            for (Property property : newComponent.getProperties()) {
-                String targetComponentName = "";
-                if (property.getKey().equals("SPRING_DATASOURCE_URL")) {
-                    targetComponentName = new URI(property.getValue().toString().replaceFirst("jdbc:", "")).getHost();
-                } else if (property.getValue().toString().startsWith("http")) {
-                    targetComponentName = new URI(property.getValue().toString()).getHost();
-                } else if (property.getKey().equals("MONGO_HOST")) {
-                    targetComponentName = property.getValue().toString();
-                } else if (property.getKey().contains("KAFKA_BOOTSTRAP_SERVERS")) {
-                    targetComponentName = property.getValue().toString().split(":")[0];
-                } else if (property.getKey().contains("ZOOKEEPER_CONNECTION_STRING")) {
-                    targetComponentName = property.getValue().toString().split(":")[0]; 
-                }
-
-                if (!targetComponentName.equals("")) {
-                    Optional<Relation> relationOpt = createRelationToComponent(targetComponentName, newComponent, tadm.getComponents(), matchingServicesAndDeployments);
-                    if (relationOpt.isPresent()) {
-                        newRelations.add(relationOpt.get());
+            List<String> targetComponentNames = tadm.getComponents().stream()
+            .map(component -> component.getName())
+            .collect(Collectors.toList());
+            for (Property property : sourceComponent.getProperties()) {
+                if (Arrays.stream(PROPERTY_KEYWORDS).anyMatch(property.getKey().toString().toLowerCase()::contains)) {
+                    Optional<String> matchedComponentName = matchPropertyWithComponentNames(property, targetComponentNames);            
+                    if (matchedComponentName.isPresent() && !matchedComponentName.get().equals(sourceComponent.getName())) {
+                        Optional<Relation> relationOpt = createRelationToComponent(matchedComponentName.get(), sourceComponent, tadm.getComponents(), matchingServicesAndDeployments);
+                        if (relationOpt.isPresent()) {
+                            newRelations.add(relationOpt.get());
+                        }
                     }
                 }
-
             }
             return newRelations;
+    }
+
+    /**
+     * Analyzes a property whether it contains a reference to another component through the name of the component.
+     * If a match is found the name of the matched component is returned.
+     * If there are several matches, the longest match is chosen, as there may be component names embedded in the 
+     * names of other components (e.g., "my-service" and "my-service-db").
+     * 
+     * @param property
+     * @param componentNames
+     * @return an Optional with the name of the matched component.
+     */
+    private Optional<String> matchPropertyWithComponentNames(Property property, List<String> componentNames) {
+        List<String> matchedComponentNames = componentNames.stream()
+        .filter(targetComponentName -> property.getValue().toString().contains(targetComponentName))
+        .collect(Collectors.toList());  
+        if (matchedComponentNames.size() == 1) {
+            return Optional.of(matchedComponentNames.get(0));
+        } else if (matchedComponentNames.size() > 1) {
+            return Optional.of(matchedComponentNames.stream().max(Comparator.comparingInt(String::length)).get());
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**

@@ -1,6 +1,7 @@
 package ust.tad.kubernetesplugin.models.tadm;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -152,6 +153,15 @@ public class TechnologyAgnosticDeploymentModel {
             ", componentTypes='" + getComponentTypes() + "'" +
             ", relationTypes='" + getRelationTypes() + "'" +
             "}";
+    }
+
+    /*
+     * Add new relations to the existing ones.
+     */
+    public void addRelations(Collection<Relation> newRelations) {
+        List<Relation> relations = this.getRelations();
+        relations.addAll(newRelations);
+        this.setRelations(relations);
     }
     
     
